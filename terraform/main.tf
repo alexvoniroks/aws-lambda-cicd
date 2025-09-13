@@ -1,37 +1,21 @@
-resource "random_id" "bucket_id" {
-  byte_length = 4
-}
-
-resource "aws_s3_bucket" "artifacts" {
-  bucket = "lambda-ci-cd-artifacts-${random_id.bucket_id.hex}"
-}
-
-resource "aws_s3_bucket_acl" "artifacts_acl" {
-  bucket = aws_s3_bucket.artifacts.id
-  acl    = "private"
-}
-
-resource "aws_s3_bucket_server_side_encryption_configuration" "artifacts_enc" {
-  bucket = aws_s3_bucket.artifacts.id
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm     = "aws:kms"
-      kms_master_key_id = aws_kms_key.lab_kms.arn
-    }
+# Local values for resource naming
+locals {
+  name_prefix = "${var.project_name}-${var.environment}"
+  
+  common_tags = {
+    Project     = var.project_name
+    Environment = var.environment
   }
 }
 
-resource "aws_s3_bucket_lifecycle_configuration" "artifacts_lifecycle" {
-  bucket = aws_s3_bucket.artifacts.id
+# Data source for current AWS account and region
+data "aws_caller_identity" "current" {}
+data "aws_region" "current" {}
 
-  rule {
-    id     = "auto-delete-old"
-    status = "Enabled"
-
-    filter {} # applies to all objects in the bucket
-
-    expiration {
-      days = 7
-    }
-  }
+# Lambda deployment package
+data "archive_file" "lambda_zip" {
+  type        = "zip"
+  source_dir  = "${path.module}/../src"
+  output_path = "${path.module}/lambda_function.zip"
+  excludes    = ["tests/", "__pycache__/", "*.pyc"]
 }

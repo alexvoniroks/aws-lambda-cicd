@@ -1,0 +1,26 @@
+# CloudWatch Log Group for Lambda
+resource "aws_cloudwatch_log_group" "lambda_logs" {
+  name              = "/aws/lambda/${local.name_prefix}-${var.lambda_function_name}"
+  retention_in_days = var.cloudwatch_log_retention_days
+  
+  tags = local.common_tags
+}
+
+# CloudWatch metric alarm for Lambda errors (optional)
+resource "aws_cloudwatch_metric_alarm" "lambda_error_rate" {
+  alarm_name          = "${local.name_prefix}-lambda-error-rate"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = "2"
+  metric_name         = "Errors"
+  namespace           = "AWS/Lambda"
+  period              = "60"
+  statistic           = "Sum"
+  threshold           = "1"
+  alarm_description   = "This metric monitors lambda error rate"
+
+  dimensions = {
+    FunctionName = aws_lambda_function.main.function_name
+  }
+
+  tags = local.common_tags
+}

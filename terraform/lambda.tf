@@ -1,68 +1,38 @@
-resource "aws_iam_role" "lambda_exec_role" {
-  name = "lab-lambda-exec-role"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Action = "sts:AssumeRole",
-        Principal = { Service = "lambda.amazonaws.com" },
-        Effect = "Allow",
-        Sid = ""
-      }
-    ]
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "lambda_basic_exec" {
-  role       = aws_iam_role.lambda_exec_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-}
-
-resource "aws_iam_policy" "lambda_secrets_policy" {
-  name = "lambda-read-secret-policy"
-  policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Effect = "Allow",
-        Action = [
-          "secretsmanager:GetSecretValue"
-        ],
-        Resource = aws_secretsmanager_secret.db_secret.arn
-      },
-      {
-        Effect = "Allow",
-        Action = [
-          "kms:Decrypt"
-        ],
-        Resource = aws_kms_key.lab_kms.arn
-      }
-    ]
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "lambda_secret_attach" {
-  role       = aws_iam_role.lambda_exec_role.name
-  policy_arn = aws_iam_policy.lambda_secrets_policy.arn
-}
-
-# Lambda function - requires ../lambda.zip to exist prior to `terraform apply`
-resource "aws_lambda_function" "lab_lambda" {
-  function_name = var.lambda_name
-  role          = aws_iam_role.lambda_exec_role.arn
-  handler       = "app.handler"
-  runtime       = "python3.11"
-  filename      = "../lambda.zip"
-  source_code_hash = filebase64sha256("../lambda.zip")
-  timeout       = 10
+# Lambda function
+resource "aws_lambda_function" "main" {
+  function_name = "${local.name_prefix}-${var.lambda_function_name}"
+  role         = aws_iam_role.lambda_execution_role.arn
+  
+  s3_bucket = aws_s3_bucket.lambda_artifacts.id
+  s3_key    = aws_s3_object.lambda_package.key
+  
+  handler = var.lambda_handler
+  runtime = var.lambda_runtime
+  timeout = var.lambda_timeout
+  
+  memory_size = var.lambda_memory_size
+  
+  source_code_hash = data.archive_file.lambda_zip.output_base64sha256
+  
   environment {
     variables = {
-      DB_SECRET_NAME = aws_secretsmanager_secret.db_secret.name
+      ENVIRONMENT = var.environment
+      PROJECT     = var.project_name
     }
   }
+  
+  depends_on = [
+    aws_iam_role_policy_attachment.lambda_basic_execution,
+    aws_cloudwatch_log_group.lambda_logs
+  ]
+  
+  tags = local.common_tags
 }
 
-resource "aws_cloudwatch_log_group" "lambda" {
-  name              = "/aws/lambda/${aws_lambda_function.lab_lambda.function_name}"
-  retention_in_days = 7
+# Lambda function alias for deployment
+resource "aws_lambda_alias" "main" {
+  name             = var.environment
+  description      = "Alias for ${var.environment} environment"
+  function_name    = aws_lambda_function.main.function_name
+  function_version = aws_lambda_function.main.version
 }

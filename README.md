@@ -1,33 +1,31 @@
-#AWS Lambda CI/CD with Terraform - Complete File Structure
-
-Project Directory Structure
+#AWS Lambda CI/CD with Terraform 
 
 aws-lambda-cicd/
+├── scripts/
+│   └── package.sh  
+├── terraform/
+│   ├── main.tf     
+│   ├── variables.tf
+│   ├── outputs.tf  
+│   ├── providers.tf
+│   ├── iam.tf      
+│   ├── s3.tf       
+│   ├── lambda.tf    
+│   ├── api-gateway.tf    
+│   ├── cloudwatch.tf     
+│   └── terraform.tfvars  
+├── src/
+│   ├── lambda_function.py
+│   ├── requirements.txt  
+│   └── tests/
+│       └── test_lambda.py
 ├── .github/
 │   └── workflows/
-│       └── deploy.yml                 # GitHub Actions CI/CD workflow
-├── terraform/
-│   ├── main.tf                        # Main Terraform configuration
-│   ├── variables.tf                   # Input variables
-│   ├── outputs.tf                     # Output values
-│   ├── providers.tf                   # Provider configurations
-│   ├── iam.tf                        # IAM roles and policies
-│   ├── s3.tf                         # S3 bucket for Lambda packages
-│   ├── lambda.tf                     # Lambda function configuration  
-│   ├── api-gateway.tf                # API Gateway (optional)
-│   ├── cloudwatch.tf                 # CloudWatch logs and monitoring
-│   └── terraform.tfvars              # Variable values (gitignored)
-├── src/
-│   ├── lambda_function.py            # Lambda function source code
-│   ├── requirements.txt              # Python dependencies
-│   └── tests/
-│       └── test_lambda.py           # Unit tests
-├── scripts/
-│   └── package.sh                   # Lambda packaging script
-├── .gitignore                       # Git ignore file
-├── README.md                        # Project documentation
-└── buildspec.yml                    # AWS CodeBuild spec (alternative)
-
+│       └── deploy.yml    
+├── builds/               
+│   └── *.zip             
+├── .gitignore            
+└── README.md             
 
 ## Architecture
 
