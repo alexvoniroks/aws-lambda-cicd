@@ -1,12 +1,14 @@
 # In your .github/workflows/deploy.yml, make sure you have proper error handling
 
 name: Deploy Lambda Function
+concurrency:
+  group: deploy
+  cancel-in-progress: false
 
 on:
   push:
     branches: [main ]
-  pull_request:
-    branches: [main]
+    paths: ['src/**', 'terraform/**']  # Only deploy for relevant changes
 
 jobs:
   terraform:
@@ -49,7 +51,7 @@ jobs:
         terraform plan -no-color
 
     - name: Terraform Apply
-      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+      if: github.ref == 'refs/heads/main'
       run: |
         cd terraform
         terraform apply -auto-approve -no-color
