@@ -39,11 +39,11 @@ jobs:
     
     - name: Terraform Plan Destroy
       working-directory: ./terraform
-      run: terraform plan -destroy -out=destroy.tfplan
+      run: terraform plan -destroy -out=destroy
     
     - name: Terraform Destroy
       working-directory: ./terraform
-      run: terraform apply destroy.tfplan
+      run: terraform apply destroy
     
     - name: Cleanup State (Optional)
       working-directory: ./terraform
