@@ -1,184 +1,55 @@
-name: Destroy Infrastructure
+# In your .github/workflows/deploy.yml, make sure you have proper error handling
+
+name: Deploy Lambda Function
 
 on:
-  workflow_dispatch:
-    inputs:
-      confirm_destroy:
-        description: 'Type "DESTROY" to confirm'
-        required: true
-        type: string
-      force_destroy:
-        description: 'Force destroy even if state is empty'
-        required: false
-        type: boolean
-        default: false
+  push:
+    branches: [main ]
+  pull_request:
+    branches: [main]
 
 jobs:
-  check-resources:
+  terraform:
     runs-on: ubuntu-latest
-    outputs:
-      has-resources: ${{ steps.check.outputs.has-resources }}
-      resources-list: ${{ steps.check.outputs.resources-list }}
-    
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-    
-    - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
-    
-    - name: Check existing AWS resources
-      id: check
-      run: |
-        echo "Checking for existing Lambda functions..."
-        LAMBDA_FUNCTIONS=$(aws lambda list-functions --query 'Functions[?contains(FunctionName, `lambda`) || contains(FunctionName, `hello`)].FunctionName' --output text || echo "")
-        
-        echo "Checking for API Gateways..."
-        API_GATEWAYS=$(aws apigateway get-rest-apis --query 'items[?contains(name, `lambda`) || contains(name, `hello`)].id' --output text || echo "")
-        
-        echo "Checking for IAM roles..."
-        IAM_ROLES=$(aws iam list-roles --query 'Roles[?contains(RoleName, `lambda`) || contains(RoleName, `terraform`)].RoleName' --output text || echo "")
-        
-        # Check if any resources exist
-        if [[ -n "$LAMBDA_FUNCTIONS" || -n "$API_GATEWAYS" || -n "$IAM_ROLES" ]]; then
-          echo "has-resources=true" >> $GITHUB_OUTPUT
-          echo "Found resources to potentially delete:"
-          echo "Lambda Functions: $LAMBDA_FUNCTIONS"
-          echo "API Gateways: $API_GATEWAYS" 
-          echo "IAM Roles: $IAM_ROLES"
-          echo "resources-list=Lambda: $LAMBDA_FUNCTIONS, API: $API_GATEWAYS, IAM: $IAM_ROLES" >> $GITHUB_OUTPUT
-        else
-          echo "has-resources=false" >> $GITHUB_OUTPUT
-          echo "No matching AWS resources found"
-          echo "resources-list=None found" >> $GITHUB_OUTPUT
-        fi
 
-  terraform-destroy:
-    runs-on: ubuntu-latest
-    needs: check-resources
-    if: github.event.inputs.confirm_destroy == 'DESTROY'
-    
     steps:
     - name: Checkout
       uses: actions/checkout@v4
-    
-    - name: Configure AWS Credentials
+
+    - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
-    
+        aws-region: us-east-1
+
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v3
       with:
         terraform_version: 1.5.0
-    
+
     - name: Terraform Init
-      working-directory: ./terraform
       run: |
-        terraform init \
-          -backend-config="bucket=${{ vars.TERRAFORM_STATE_BUCKET }}" \
-          -backend-config="key=${{ vars.TERRAFORM_STATE_KEY }}" \
-          -backend-config="region=${{ vars.AWS_REGION || 'us-east-1' }}"
-    
-    - name: Check Terraform State
-      working-directory: ./terraform
-      run: |
-        echo "Current Terraform state:"
-        terraform show || echo "No state found"
-        echo "Terraform state list:"
-        terraform state list || echo "State is empty"
-    
-    - name: Terraform Plan Destroy
-      working-directory: ./terraform
-      run: |
-        terraform plan -destroy -detailed-exitcode -out=destroy.tfplan
-        PLAN_EXIT_CODE=$?
-        if [ $PLAN_EXIT_CODE -eq 0 ]; then
-          echo "No changes needed - no resources to destroy"
-        elif [ $PLAN_EXIT_CODE -eq 2 ]; then
-          echo "Resources found to destroy - proceeding"
-        else
-          echo "Terraform plan failed"
-          exit 1
-        fi
-      continue-on-error: false
-    
-    - name: Terraform Destroy
-      working-directory: ./terraform
-      run: |
-        if [ -f destroy.tfplan ]; then
-          terraform apply destroy.tfplan
-        else
-          echo "No destroy plan found - running direct destroy"
-          terraform destroy -auto-approve
-        fi
-    
-    - name: Post-destroy verification
-      run: |
-        echo "Verification: Checking remaining resources..."
-        aws lambda list-functions --query 'Functions[?contains(FunctionName, `lambda`) || contains(FunctionName, `hello`)].FunctionName' --output table || echo "No Lambda functions found"
-        aws apigateway get-rest-apis --query 'items[?contains(name, `lambda`) || contains(name, `hello`)].name' --output table || echo "No API Gateways found"
+        cd terraform
+        terraform init
 
-  manual-cleanup:
-    runs-on: ubuntu-latest
-    needs: [check-resources, terraform-destroy]
-    if: always() && github.event.inputs.force_destroy == 'true' && needs.check-resources.outputs.has-resources == 'true'
-    
-    steps:
-    - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
-    
-    - name: Force cleanup remaining resources
+    - name: Terraform Format Check
       run: |
-        echo "Force cleaning up resources..."
-        
-        # Delete Lambda functions
-        FUNCTIONS=$(aws lambda list-functions --query 'Functions[?contains(FunctionName, `lambda`) || contains(FunctionName, `hello`)].FunctionName' --output text)
-        for func in $FUNCTIONS; do
-          echo "Deleting Lambda function: $func"
-          aws lambda delete-function --function-name "$func" || echo "Failed to delete $func"
-        done
-        
-        # Delete API Gateways
-        APIS=$(aws apigateway get-rest-apis --query 'items[?contains(name, `lambda`) || contains(name, `hello`)].id' --output text)
-        for api in $APIS; do
-          echo "Deleting API Gateway: $api"
-          aws apigateway delete-rest-api --rest-api-id "$api" || echo "Failed to delete API $api"
-        done
-        
-        # Clean up IAM roles (be careful with this)
-        echo "⚠️ Found IAM roles - review manually:"
-        aws iam list-roles --query 'Roles[?contains(RoleName, `lambda`) || contains(RoleName, `terraform`)].RoleName' --output table
-        
-        echo "Manual cleanup completed"
+        cd terraform
+        terraform fmt -check || echo "Formatting issues found but continuing..."
 
-  summary:
-    runs-on: ubuntu-latest
-    needs: [check-resources, terraform-destroy]
-    if: always()
-    
-    steps:
-    - name: Destruction Summary
+    - name: Terraform Validate
       run: |
-        echo "## 🗑️ Destruction Summary"
-        echo "Resources found: ${{ needs.check-resources.outputs.has-resources }}"
-        echo "Resources list: ${{ needs.check-resources.outputs.resources-list }}"
-        echo "Terraform destroy status: ${{ needs.terraform-destroy.result }}"
-        
-        if [ "${{ needs.check-resources.outputs.has-resources }}" == "false" ]; then
-          echo "✅ No resources were found to destroy"
-        elif [ "${{ needs.terraform-destroy.result }}" == "success" ]; then
-          echo "✅ Terraform destroy completed successfully"
-        else
-          echo "⚠️ Terraform destroy had issues - check logs above"
-        fi
+        cd terraform
+        terraform validate
+
+    - name: Terraform Plan
+      run: |
+        cd terraform
+        terraform plan -no-color
+
+    - name: Terraform Apply
+      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+      run: |
+        cd terraform
+        terraform apply -auto-approve -no-color
