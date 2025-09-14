@@ -57,7 +57,7 @@ jobs:
     
     - name: Terraform Format Check
       run: |
-    terraform fmt -check || echo "Formatting issues found but continuing..."
+        terraform fmt -check || echo "Formatting issues found but continuing..."
     
     - name: Terraform Init
       run: terraform init
