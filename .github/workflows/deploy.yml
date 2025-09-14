@@ -1,55 +1,53 @@
-# In your .github/workflows/deploy.yml, make sure you have proper error handling
-
-name: Deploy Lambda Function
+name: Destroy Infrastructure
 
 on:
-  push:
-    branches: [main ]
-  pull_request:
-    branches: [main]
+  workflow_dispatch:  # Manual trigger
+    inputs:
+      confirm_destroy:
+        description: 'Type "DESTROY" to confirm'
+        required: true
+        type: string
 
 jobs:
-  terraform:
+  destroy:
     runs-on: ubuntu-latest
+    if: github.event.inputs.confirm_destroy == 'DESTROY'
     
     steps:
     - name: Checkout
       uses: actions/checkout@v4
-
-    - name: Configure AWS credentials
+    
+    - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: us-east-1
-
+        aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+    
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v3
       with:
         terraform_version: 1.5.0
-
+    
     - name: Terraform Init
+      working-directory: ./terraform
       run: |
-        cd terraform
-        terraform init
-
-    - name: Terraform Format Check
+        terraform init \
+          -backend-config="bucket=${{ vars.TERRAFORM_STATE_BUCKET }}" \
+          -backend-config="key=${{ vars.TERRAFORM_STATE_KEY }}" \
+          -backend-config="region=${{ vars.AWS_REGION || 'us-east-1' }}"
+    
+    - name: Terraform Plan Destroy
+      working-directory: ./terraform
+      run: terraform plan -destroy -out=destroy.tfplan
+    
+    - name: Terraform Destroy
+      working-directory: ./terraform
+      run: terraform apply destroy.tfplan
+    
+    - name: Cleanup State (Optional)
+      working-directory: ./terraform
       run: |
-        cd terraform
-        terraform fmt -check || echo "Formatting issues found but continuing..."
-
-    - name: Terraform Validate
-      run: |
-        cd terraform
-        terraform validate
-
-    - name: Terraform Plan
-      run: |
-        cd terraform
-        terraform plan -no-color
-      
-    - name: Terraform Apply
-      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
-      run: |
-        cd terraform
-        terraform apply -auto-approve -no-color
+        # Optional: Remove the state file if you want to completely clean up
+        # terraform force-unlock <LOCK_ID> # if needed
+        echo "Infrastructure destroyed successfully"
