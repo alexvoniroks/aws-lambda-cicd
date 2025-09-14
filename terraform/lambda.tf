@@ -37,10 +37,9 @@ resource "aws_lambda_alias" "main" {
   function_version = aws_lambda_function.main.version
 }
 
-# CloudWatch Log Group for Lambda
+# Add this to your lambda.tf file
 resource "aws_cloudwatch_log_group" "lambda_logs" {
-  name              = "/aws/lambda/${var.function_name}"
-  retention_in_days = var.log_retention_days
-
-  tags = var.tags
+  name              = "/aws/lambda/${var.lambda_function_name}"
+  retention_in_days = var.cloudwatch_log_retention_days
+  tags              = var.tags
 }
