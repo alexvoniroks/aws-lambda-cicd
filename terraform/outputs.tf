@@ -28,12 +28,13 @@ output "cloudwatch_log_group_name" {
   value       = aws_cloudwatch_log_group.lambda_logs.name
 }
 
-output "api_gateway_url" {
-  description = "API Gateway URL"
-  value       = var.enable_api_gateway ? aws_api_gateway_deployment.main[0].invoke_url : "API Gateway not enabled"
-}
+# Comment out or remove these outputs if you don't want API Gateway
+# output "api_gateway_url" {
+#   description = "Base URL for API Gateway stage"
+#   value       = var.enable_api_gateway ? aws_api_gateway_deployment.main[0].invoke_url : "API Gateway not enabled"
+# }
 
-output "api_gateway_test_url" {
-  description = "API Gateway test URL"
-  value       = var.enable_api_gateway ? "${aws_api_gateway_deployment.main[0].invoke_url}/hello" : "API Gateway not enabled"
-}
+# output "api_gateway_test_url" {
+#   description = "URL for testing the Lambda function via API Gateway"
+#   value       = var.enable_api_gateway ? "${aws_api_gateway_deployment.main[0].invoke_url}/hello" : "API Gateway not enabled"
+# }

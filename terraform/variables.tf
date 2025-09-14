@@ -49,17 +49,36 @@ variable "lambda_memory_size" {
 variable "enable_api_gateway" {
   description = "Enable API Gateway integration"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "api_gateway_stage_name" {
   description = "API Gateway stage name"
   type        = string
-  default     = "dev"
+  default     = "prod"
 }
 
-variable "cloudwatch_log_retention_days" {
+variable "log_retention_days" {
   description = "CloudWatch log retention in days"
   type        = number
-  default     = 7
+  default     = 14
 }
+
+variable "create_log_stream" {
+  description = "Whether to create a log stream"
+  type        = bool
+  default     = true
+}
+
+variable "function_name" {
+  description = "Name of the Lambda function"
+  type        = string
+}
+
+variable "tags" {
+  description = "A map of tags to assign to the resource"
+  type        = map(string)
+  default     = {}
+}
+
+
